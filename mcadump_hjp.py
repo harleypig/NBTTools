@@ -37,14 +37,13 @@ def warn (*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 def dumpchunk (msg: str, chunk: dict):
-    warn("{0} ({1},{2})".format(msg, args.x, args.z))
+    #warn("{0} ({1},{2})".format(msg, args.x, args.z))
     print(json.dumps(chunk.dump(), indent=2, sort_keys=True))
     exit(1)
 
 def dumpdict (msg: str, data: dict):
-    warn("{0} ({1},{2})".format(msg, args.x, args.z))
+    #warn("{0} ({1},{2})".format(msg, args.x, args.z))
     print(json.dumps(data, indent=2, sort_keys=True))
-    exit(1)
 
 # "BB": [ -940, 8, -581, -778, 25, -464 ],
 def bb_midpoint (bb: list):
@@ -53,10 +52,6 @@ def bb_midpoint (bb: list):
     z = int((bb[2] + bb[5])/2)
 
     return x, y, z
-
-def save_waypoint (filename: str, data: dict):
-    with open(filename, 'w') as outfile:
-        json.dump(data, outfile)
 
 def find (pattern, path):
     result = []
@@ -68,15 +63,11 @@ def find (pattern, path):
 
     return result
 
-#-----------------------------------------------------------------------------
-def basic_structure (name: str, data: dict):
-    if "BB" not in data:
-        warn("no bounding border data found in {0} data".format(name))
-        save_waypoint("{0}-no-bb.json".format(name), data)
-        return 1
+def save_json (filename: str, data: dict):
+    with open(filename, 'w') as outfile:
+        json.dump(data, outfile)
 
-    mx, my, mz = bb_midpoint(data['BB'])
-
+def save_waypoint (name: str, mx: int, my: int, mz: int, dim=[1]):
     waypoint = waypoint_template.copy()
 
     waypoint['id'] = "{0}_{1},{2},{3}".format(name,mx,my,mz)
@@ -84,10 +75,23 @@ def basic_structure (name: str, data: dict):
     waypoint['x'] = mx
     waypoint['y'] = my
     waypoint['z'] = mz
+    waypoint['dimensions'] = dim
 
     filename = "{0}.json".format(waypoint['id'])
 
-    save_waypoint(filename, waypoint)
+    save_json(filename, waypoint)
+
+#-----------------------------------------------------------------------------
+def basic_structure (name: str, data: dict, dim=[1]):
+    if "BB" not in data:
+        warn("no bounding border data found in {0} data".format(name))
+        save_json("{0}-no-bb.json".format(name), data)
+        return 1
+
+    mx, my, mz = bb_midpoint(data['BB'])
+
+    save_waypoint(name, mx, my, mz, dim)
+
 
 #-----------------------------------------------------------------------------
 def Ocean_Ruin (data: dict):
@@ -99,7 +103,51 @@ def Shipwreck (data: dict):
 
 #-----------------------------------------------------------------------------
 def Mineshaft (data: dict):
-    basic_structure('Mineshaft', data)
+    basic_structure('Mineshaft', data, [2])
+
+#-----------------------------------------------------------------------------
+def Igloo (data: dict):
+    basic_structure('Igloo', data)
+
+#-----------------------------------------------------------------------------
+def Jungle_Pyramid (data: dict):
+    basic_structure('Jungle Pyramid', data)
+
+#-----------------------------------------------------------------------------
+def Pillager_Outpost (data: dict):
+    basic_structure('Pillager Outpost', data)
+
+#-----------------------------------------------------------------------------
+def Swamp_Hut (data: dict):
+    basic_structure('Swamp Hut', data)
+
+#-----------------------------------------------------------------------------
+def Village (data: dict):
+    basic_structure('Village', data)
+
+#-----------------------------------------------------------------------------
+def quark_big_dungeon (data: dict):
+    if "BB" not in data:
+        warn("no bounding border data found in quark:big_dungeon data".format(name))
+        save_json("{0}-no-bb.json".format(name), data)
+        return 1
+
+    name='Big Dungeon Corner'
+
+    my = data['BB'][1]
+
+    if data['BB'][4] > my:
+        my = data['BB'][4]
+
+    mx1 = data['BB'][0]
+    mx2 = data['BB'][3]
+    mz1 = data['BB'][2]
+    mz2 = data['BB'][5]
+
+    save_waypoint(name, mx1, my, mz1)
+    save_waypoint(name, mx1, my, mz2)
+    save_waypoint(name, mx2, my, mz1)
+    save_waypoint(name, mx2, my, mz2)
 
 #-----------------------------------------------------------------------------
 def find_structures (chunk: dict):
@@ -124,36 +172,45 @@ def find_structures (chunk: dict):
         if data[s]['id'] == 'INVALID':
             continue
 
-        func = globals()[s]
-        func(data[s])
+        try:
+            func = globals()[s]
+            func(data[s])
+
+        except KeyError:
+            if s == 'quark:big_dungeon':
+                quark_big_dungeon(data[s])
+
+            else:
+                warn("don't know how to handle structure {0}".format(s))
+                save_json(s + ".json", data[s])
 
 #-----------------------------------------------------------------------------
-def parse_file (filename: str):
+def parse_file (filename):
     with open(filename, 'rb') as f:
         for cx in range(0,32):
             for cz in range(0,32):
-                warn("reading chunk {0},{1} from {2} ...".format(cx,cz,filename))
+                #warn("reading chunk {0},{1} from {2} ...".format(cx,cz,filename))
 
                 s = (cx + cz * 32) * 4
-                warn("s: {0}".format(s))
+                #warn("s: {0}".format(s))
 
                 f.seek(s)
                 start = struct.unpack('>i', f.read(4))[0]
-                warn("start: {0}".format(start))
+                #warn("start: {0}".format(start))
 
                 if start == 0:
-                    warn("chunk {0},{1} is empty".format(cx,cz))
+                    #warn("chunk {0},{1} is empty".format(cx,cz))
                     continue
 
                 offset = 4096 * (start >> 8)
-                warn("offset: {0}".format(offset))
+                #warn("offset: {0}".format(offset))
 
                 f.seek(offset)
 
                 chunk = mca.Region.read_chunk(f)
 
                 if not chunk:
-                    warn("could not read chunk {0},{1}".format(cx,cz))
+                    #warn("could not read chunk {0},{1}".format(cx,cz))
                     exit(1)
 
                 find_structures(chunk)
@@ -163,19 +220,9 @@ def parse_file (filename: str):
 
 parser = argparse.ArgumentParser(description='Minecraft MCA dump')
 parser.add_argument('mcapath')
-
 args = parser.parse_args()
-
-#parse_file('/home/harleypig/.config/gdlauncher_next/instances/Playpen/saves/Play that funky ___/region/r.-2.-1.mca')
-#parse_file('/home/harleypig/.config/gdlauncher_next/instances/Playpen/saves/Play that funky ___/region/r.1.0.mca')
-#exit(1)
-
-testfile = '/home/harleypig/.config/gdlauncher_next/instances/Playpen/saves/Play that funky ___/region/r.1.0.mca'
 
 mcas = find('*.mca', args.mcapath)
 
-for mca in mcas:
-    #print(">>>{0}<<<".format(mca))
-    #parse_file(mca)
-    parse_file(testfile)
-    exit(1)
+for m in mcas:
+    parse_file(m)
