@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+# https://minecraft.gamepedia.com/Java_Edition_level_format
+# https://minecraft.gamepedia.com/Chunk_format
+
 import argparse
 import fnmatch
 import json
@@ -11,12 +14,6 @@ import mca
 
 #-----------------------------------------------------------------------------
 # Setup
-
-#  "id": "Home_-28,75,-178",
-#  "name": "Home",
-#  "x": -28,
-#  "y": 75,
-#  "z": -178,
 
 waypoint_template = {
   "icon": "waypoint-normal.png",
@@ -35,15 +32,6 @@ waypoint_template = {
 
 def warn (*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
-
-def dumpchunk (msg: str, chunk: dict):
-    #warn("{0} ({1},{2})".format(msg, args.x, args.z))
-    print(json.dumps(chunk.dump(), indent=2, sort_keys=True))
-    exit(1)
-
-def dumpdict (msg: str, data: dict):
-    #warn("{0} ({1},{2})".format(msg, args.x, args.z))
-    print(json.dumps(data, indent=2, sort_keys=True))
 
 # "BB": [ -940, 8, -581, -778, 25, -464 ],
 def bb_midpoint (bb: list):
@@ -67,6 +55,10 @@ def save_json (filename: str, data: dict):
     with open(filename, 'w') as outfile:
         json.dump(data, outfile)
 
+def dumpchunk (msg: str, chunk: dict):
+    warn(msg)
+    print(json.dumps(chunk.dump(), indent=2, sort_keys=True))
+
 def save_waypoint (name: str, mx: int, my: int, mz: int, dim=[1]):
     waypoint = waypoint_template.copy()
 
@@ -77,15 +69,15 @@ def save_waypoint (name: str, mx: int, my: int, mz: int, dim=[1]):
     waypoint['z'] = mz
     waypoint['dimensions'] = dim
 
-    filename = "{0}.json".format(waypoint['id'])
+    filename = "json/{0}.json".format(waypoint['id'])
 
     save_json(filename, waypoint)
 
 #-----------------------------------------------------------------------------
-def basic_structure (name: str, data: dict, dim=[1]):
+def basic_structure (name: str, data: dict, dim=[3]):
     if "BB" not in data:
         warn("no bounding border data found in {0} data".format(name))
-        save_json("{0}-no-bb.json".format(name), data)
+        save_json("json/{0}-no-bb.json".format(name), data)
         return 1
 
     mx, my, mz = bb_midpoint(data['BB'])
@@ -103,7 +95,7 @@ def Shipwreck (data: dict):
 
 #-----------------------------------------------------------------------------
 def Mineshaft (data: dict):
-    basic_structure('Mineshaft', data, [2])
+    basic_structure('Mineshaft', data, [3])
 
 #-----------------------------------------------------------------------------
 def Igloo (data: dict):
@@ -129,7 +121,7 @@ def Village (data: dict):
 def quark_big_dungeon (data: dict):
     if "BB" not in data:
         warn("no bounding border data found in quark:big_dungeon data".format(name))
-        save_json("{0}-no-bb.json".format(name), data)
+        save_json("json/{0}-no-bb.json".format(name), data)
         return 1
 
     name='Big Dungeon Corner'
@@ -150,21 +142,18 @@ def quark_big_dungeon (data: dict):
     save_waypoint(name, mx2, my, mz2)
 
 #-----------------------------------------------------------------------------
-def find_structures (chunk: dict):
-    level = chunk.get('Level')
-
-    if not level:
-        dumpchunk('no level data found in chunk', chunk)
-
+def find_structures (level: dict):
     structures = level.get('Structures')
 
     if not structures:
-        dumpchunk('no structures data found in level', chunk)
+        dumpchunk('no structures data found in level', level)
+        return 1
 
     starts = structures.get('Starts')
 
     if not starts:
-        dumpchunk('no starts found in structures', chunk)
+        dumpchunk('no starts found in structures', structures)
+        return 1
 
     data = starts.dump()
 
@@ -182,7 +171,8 @@ def find_structures (chunk: dict):
 
             else:
                 warn("don't know how to handle structure {0}".format(s))
-                save_json(s + ".json", data[s])
+                savefile="json/{0}.json".format(s)
+                save_json(savefile, data[s])
 
 #-----------------------------------------------------------------------------
 def parse_file (filename):
@@ -210,10 +200,16 @@ def parse_file (filename):
                 chunk = mca.Region.read_chunk(f)
 
                 if not chunk:
-                    #warn("could not read chunk {0},{1}".format(cx,cz))
+                    warn("could not read chunk {0},{1}".format(cx,cz))
                     exit(1)
 
-                find_structures(chunk)
+                level = chunk.get('Level')
+
+                if not level:
+                    dumpchunk('no level data found in chunk', chunk)
+                    return 1
+
+                find_structures(level)
 
 #-----------------------------------------------------------------------------
 # Parse command-line arguments
@@ -225,4 +221,5 @@ args = parser.parse_args()
 mcas = find('*.mca', args.mcapath)
 
 for m in mcas:
+    warn("Parsing {0}".format(os.path.basename(m)))
     parse_file(m)

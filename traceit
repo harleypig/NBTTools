@@ -1,0 +1,14 @@
+#!/bin/bash
+
+app=mcadump_hjp.py
+mcafile='/home/harleypig/.config/gdlauncher_next/instances/Playpen/saves/Play that funky ___/region'
+
+declare -a topts
+
+topts+=('--ignore-dir' '/usr/lib/python2.7')
+topts+=('--ignore-dir' '/usr/lib/python3.7')
+topts+=('--ignore-dir' '/usr/lib/python3.8')
+topts+=('--ignore-dir' '/usr/lib/pymodules')
+
+python -m trace --trace "${topts[@]}" "$app" "$mcafile"
+#"$app" "$mcafile"
