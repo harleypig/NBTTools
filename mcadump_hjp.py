@@ -15,6 +15,11 @@ import mca
 #-----------------------------------------------------------------------------
 # Setup
 
+# 'persistent' sets whether or not the waypoint should be saved to a file.
+# It doesn't make sense to set this to False.
+
+# What is type?
+
 waypoint_template = {
   "icon": "waypoint-normal.png",
   "r": 0,
@@ -175,6 +180,27 @@ def find_structures (level: dict):
                 save_json(savefile, data[s])
 
 #-----------------------------------------------------------------------------
+def find_tileentities (level: dict):
+    tileentities = level.get('TileEntities')
+    entities = tileentities.dump()
+
+    for ent in entities:
+        id = ent["id"]
+
+        if id == 'DUMMY':
+            continue
+
+        if id != 'minecraft:mob_spawner':
+            continue
+
+        #print(json.dumps(ent, indent=2, sort_keys=True))
+        #sys.exit(0)
+
+        mob = ent["SpawnData"]["id"].split(':')[1]
+        spawner_name = '{0} Spawner'.format(mob.replace('_', ' ').title())
+        save_waypoint(spawner_name, ent["x"], ent["y"],ent["z"])
+
+#-----------------------------------------------------------------------------
 def parse_file (filename):
     with open(filename, 'rb') as f:
         for cx in range(0,32):
@@ -209,6 +235,10 @@ def parse_file (filename):
                     dumpchunk('no level data found in chunk', chunk)
                     return 1
 
+                #savefile="json/{0}-{1}-{2}.json".format(os.path.basename(filename), cx, cz)
+                #save_json(savefile, level.dump())
+
+                find_tileentities(level)
                 find_structures(level)
 
 #-----------------------------------------------------------------------------
